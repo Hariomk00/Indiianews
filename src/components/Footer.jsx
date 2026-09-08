@@ -6,7 +6,6 @@ import {
   Mail, 
   Phone, 
   MapPin, 
-  Rss, 
   ArrowUp, 
   ShieldCheck,
   Globe,
@@ -152,15 +151,6 @@ const Footer = () => {
                   className="w-8 h-8 rounded-full bg-gray-800 hover:bg-sky-500 hover:text-white flex items-center justify-center transition text-gray-400 shadow-sm"
                 >
                   <TelegramIcon />
-                </a>
-                <a
-                  href="/rss.xml"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="RSS Feed"
-                  className="w-8 h-8 rounded-full bg-gray-800 hover:bg-amber-600 hover:text-white flex items-center justify-center transition text-gray-400 shadow-sm"
-                >
-                  <Rss size={14} />
                 </a>
               </div>
             </div>

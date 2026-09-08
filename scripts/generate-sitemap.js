@@ -43,7 +43,7 @@ const escapeXml = (unsafe) => {
 };
 
 async function generate() {
-  console.log('--- Generating SEO Assets: sitemap.xml, sitemap-news.xml, rss.xml, and robots.txt ---');
+  console.log('--- Generating SEO Assets: sitemap.xml and robots.txt ---');
   
   const nowIso = new Date().toISOString();
   const urls = [
@@ -145,62 +145,7 @@ async function generate() {
   fs.writeFileSync(sitemapPath, xml, 'utf8');
   console.log(`✓ Successfully generated clean sitemap.xml at: ${sitemapPath}`);
 
-  // 4. Build Google News Sitemap (sitemap-news.xml) for fresh articles
-  // Google News sitemaps prioritize the most recent articles
-  const recentNews = [...newsItems]
-    .sort((a, b) => b.rawDate - a.rawDate)
-    .slice(0, 100);
-
-  let newsXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-  newsXml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n';
-  recentNews.forEach(item => {
-    newsXml += '  <url>\n';
-    newsXml += `    <loc>${escapeXml(item.url)}</loc>\n`;
-    newsXml += '    <news:news>\n';
-    newsXml += '      <news:publication>\n';
-    newsXml += '        <news:name>Indiianews</news:name>\n';
-    newsXml += '        <news:language>hi</news:language>\n';
-    newsXml += '      </news:publication>\n';
-    newsXml += `      <news:publication_date>${item.pubDate}</news:publication_date>\n`;
-    newsXml += `      <news:title>${escapeXml(item.title)}</news:title>\n`;
-    newsXml += '    </news:news>\n';
-    newsXml += '  </url>\n';
-  });
-  newsXml += '</urlset>\n';
-
-  const newsSitemapPath = path.join(PUBLIC_DIR, 'sitemap-news.xml');
-  fs.writeFileSync(newsSitemapPath, newsXml, 'utf8');
-  console.log(`✓ Successfully generated Google News sitemap at: ${newsSitemapPath}`);
-
-  // 5. Build RSS 2.0 Feed (rss.xml) for instant discovery by Googlebot-News and RSS readers
-  let rssXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-  rssXml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n';
-  rssXml += '  <channel>\n';
-  rssXml += '    <title>Indiianews | ताज़ा खबरें एवं ब्रेकिंग न्यूज़</title>\n';
-  rssXml += `    <link>${BASE_URL}</link>\n`;
-  rssXml += '    <description>Indiianews - देश और दुनिया की ताज़ा ख़बरों का सबसे विश्वसनीय माध्यम।</description>\n';
-  rssXml += '    <language>hi</language>\n';
-  rssXml += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
-  rssXml += `    <atom:link href="${BASE_URL}/rss.xml" rel="self" type="application/rss+xml" />\n`;
-
-  recentNews.forEach(item => {
-    rssXml += '    <item>\n';
-    rssXml += `      <title>${escapeXml(item.title)}</title>\n`;
-    rssXml += `      <link>${escapeXml(item.url)}</link>\n`;
-    rssXml += `      <guid isPermaLink="true">${escapeXml(item.url)}</guid>\n`;
-    rssXml += `      <pubDate>${item.rawDate.toUTCString()}</pubDate>\n`;
-    rssXml += `      <description>${escapeXml(item.shortDesc || item.title)}</description>\n`;
-    rssXml += '    </item>\n';
-  });
-
-  rssXml += '  </channel>\n';
-  rssXml += '</rss>\n';
-
-  const rssPath = path.join(PUBLIC_DIR, 'rss.xml');
-  fs.writeFileSync(rssPath, rssXml, 'utf8');
-  console.log(`✓ Successfully generated RSS Feed at: ${rssPath}`);
-
-  // 6. Build and write optimized robots.txt
+  // 4. Build and write optimized robots.txt with single clean sitemap
   const robotsTxt = `# https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
@@ -228,10 +173,8 @@ Allow: /
 Allow: /news/
 Disallow: /admin/
 
-# Sitemaps & Feeds for Immediate Discovery
+# Primary Sitemap
 Sitemap: ${BASE_URL}/sitemap.xml
-Sitemap: ${BASE_URL}/sitemap-news.xml
-Sitemap: ${BASE_URL}/rss.xml
 `;
 
   const robotsPath = path.join(PUBLIC_DIR, 'robots.txt');

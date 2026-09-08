@@ -25,7 +25,5 @@ Allow: /
 Allow: /news/
 Disallow: /admin/
 
-# Sitemaps & Feeds for Immediate Discovery
+# Primary Sitemap
 Sitemap: https://indiianews.in/sitemap.xml
-Sitemap: https://indiianews.in/sitemap-news.xml
-Sitemap: https://indiianews.in/rss.xml

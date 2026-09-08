@@ -89,6 +89,7 @@ const NewsDetail = () => {
 
     const fetchNewsDetail = async () => {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      setNews(null);
       setLoading(true);
       setError(null);
       try {
@@ -162,7 +163,7 @@ const NewsDetail = () => {
           }
         }
 
-        // Step 6: Fallback scan across recent 200 articles
+        // Step 6: Fallback scan across recent 200 articles with precise matching
         if (!articleData) {
           try {
             const qLatest = query(collection(db, "news"), orderBy("createdAt", "desc"), limit(200));
@@ -171,18 +172,33 @@ const NewsDetail = () => {
 
             const matchedDoc = querySnapLatest.docs.find((d) => {
               const data = d.data();
-              if (d.id === id) return true;
+              const did = d.id;
+              if (did === id || (extractedId && did === extractedId)) return true;
+
               const cleanDocSlug = createNewsSlug(data.title);
               const translitDoc = slugify(data.title);
+
+              // 1. Exact matches
               if (
-                data.title === rawDecoded ||
-                translitDoc === targetSlug ||
                 cleanDocSlug === targetSlug ||
-                (data.slug && (data.slug === targetSlug || data.slug === cleanDocSlug)) ||
-                (targetSlug.length > 12 && (cleanDocSlug.startsWith(targetSlug) || targetSlug.startsWith(cleanDocSlug)))
+                translitDoc === targetSlug ||
+                data.slug === targetSlug ||
+                data.title === rawDecoded
               ) {
                 return true;
               }
+
+              // 2. Safe prefix match only for long slugs (> 30 chars) to account for word capping
+              if (
+                cleanDocSlug &&
+                targetSlug &&
+                cleanDocSlug.length >= 30 &&
+                targetSlug.length >= 30 &&
+                (cleanDocSlug.startsWith(targetSlug) || targetSlug.startsWith(cleanDocSlug))
+              ) {
+                return true;
+              }
+
               return false;
             });
 
