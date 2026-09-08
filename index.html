@@ -9,7 +9,12 @@
     <meta name="title" content="Indiianews | Latest Hindi & English News Updates | हिंदी न्यूज़, ताज़ा खबर" />
     <meta name="description" content="Stay updated with the latest news, breaking updates, and trending stories in Hindi and English on Indiianews. इंडिया न्यूज़ - ताज़ा खबरें और ब्रेकिंग न्यूज़।" />
     <meta name="keywords" content="indiianews, latest news, breaking news in hindi, news website, hindi news, english news, trending stories, हिंदी न्यूज़, ताज़ा खबर" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://indiianews.in/" />
+    <link rel="alternate" type="application/rss+xml" title="Indiianews RSS Feed" href="https://indiianews.in/rss.xml" />
+    
+    <!-- Google Search Console Verification Placeholder -->
+    <meta name="google-site-verification" content="GSC_VERIFICATION_CODE" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
@@ -26,14 +31,33 @@
     <meta name="twitter:description" content="Stay updated with the latest news, breaking updates, and trending stories in Hindi and English on Indiianews. इंडिया न्यूज़ - ताज़ा खबरें और ब्रेकिंग न्यूज़।" />
     <meta name="twitter:image" content="/favicon.png" />
 
-    <!-- Structured Data / JSON-LD for Site Name -->
+    <!-- Structured Data / JSON-LD for Site & NewsMediaOrganization -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Indiianews",
-        "alternateName": ["India News", "इंडिया न्यूज़"],
-        "url": "https://indiianews.in/"
+        "@graph": [
+          {
+            "@type": "NewsMediaOrganization",
+            "@id": "https://indiianews.in/#organization",
+            "name": "Indiianews",
+            "url": "https://indiianews.in/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://indiianews.in/favicon.png"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://indiianews.in/#website",
+            "url": "https://indiianews.in/",
+            "name": "Indiianews",
+            "publisher": {
+              "@id": "https://indiianews.in/#organization"
+            },
+            "alternateName": ["India News", "इंडिया न्यूज़", "News Today"],
+            "inLanguage": ["hi", "en"]
+          }
+        ]
       }
     </script>
   </head>

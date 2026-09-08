@@ -6,4 +6,26 @@ Allow: /news/
 Disallow: /admin/
 Disallow: /admin/*
 
+# Dedicated Googlebot Directives
+User-agent: Googlebot
+Allow: /
+Allow: /news/
+Allow: /category/
+Disallow: /admin/
+
+# Googlebot-News Directives
+User-agent: Googlebot-News
+Allow: /
+Allow: /news/
+Disallow: /admin/
+
+# Bingbot Directives
+User-agent: Bingbot
+Allow: /
+Allow: /news/
+Disallow: /admin/
+
+# Sitemaps & Feeds for Immediate Discovery
 Sitemap: https://indiianews.in/sitemap.xml
+Sitemap: https://indiianews.in/sitemap-news.xml
+Sitemap: https://indiianews.in/rss.xml

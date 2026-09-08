@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { collection, query, orderBy, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import Header from "../components/Header";
+import Footer from "../components/Footer";
 import { useSEO } from "../hooks/useSEO";
-import { getUrlFriendlyTitle } from "../utils/slugify";
+import { createNewsSlug } from "../utils/slugify";
+import { Play } from "lucide-react";
 
 const Home = () => {
   useSEO();
@@ -196,16 +198,23 @@ const Home = () => {
             {newsList.map((news) => (
               <Link 
                 key={news.id} 
-                to={`/news/${getUrlFriendlyTitle(news.title)}`}
+                to={`/news/${createNewsSlug(news.title, news.id)}`}
                 className="group flex flex-col bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-gray-100 dark:border-gray-850 transition duration-300"
               >
                 {/* Card Image */}
-                <div className="h-48 overflow-hidden relative">
+                <div className="h-48 overflow-hidden relative bg-gray-100 dark:bg-gray-800">
                   <img 
                     src={news.image} 
                     alt={news.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
+                  {(news.media_type === "video" || news.video_url) && (
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/40 transition duration-300">
+                      <div className="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition duration-300">
+                        <Play size={22} className="fill-current ml-0.5" />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Content */}
@@ -238,6 +247,7 @@ const Home = () => {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { X } from "lucide-react";
+import DailyQuote from "./DailyQuote";
 
 // Helper to generate a random hex color code
 const getRandomColor = () => {
@@ -137,8 +138,11 @@ const SearchModal = ({ onClose }) => {
         {/* Results List */}
         <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
           {keyword.trim() === "" ? (
-            <div className="py-8 px-4 text-center text-sm text-gray-400 dark:text-gray-500">
-              Type the name of a category to search...
+            <div className="p-4 space-y-4">
+              <DailyQuote variant="compact" />
+              <p className="text-center text-xs text-gray-400 dark:text-gray-500 pt-1">
+                श्रेणी खोजने के लिए नाम टाइप करें (Type category name to search)...
+              </p>
             </div>
           ) : filteredResults.length > 0 ? (
             filteredResults.map((cat) => (

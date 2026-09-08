@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../firebase";
 import { Search, Moon, Sun, Languages, ChevronDown } from "lucide-react";
 import SearchModal from "./SearchModal";
+import DailyQuote from "./DailyQuote";
 
 const languages = [
   { code: "en", name: "English" },
@@ -279,6 +280,9 @@ const Header = () => {
           })}
         </div>
       </header>
+
+      {/* Point 4: Strictly One Hindi Quote of the Day */}
+      <DailyQuote />
 
       {/* Category Search Modal */}
       {isSearchOpen && <SearchModal onClose={() => setIsSearchOpen(false)} />}
