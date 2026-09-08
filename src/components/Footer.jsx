@@ -221,16 +221,6 @@ const Footer = () => {
                   नियम एवं शर्तें (Terms & Conditions)
                 </Link>
               </li>
-              <li>
-                <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-red-400 transition">
-                  साइटमैप (XML Sitemap)
-                </a>
-              </li>
-              <li>
-                <a href="/rss.xml" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-red-400 transition">
-                  RSS न्यूज़ फीड (Google News Feed)
-                </a>
-              </li>
             </ul>
           </div>
 

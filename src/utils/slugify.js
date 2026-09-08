@@ -96,12 +96,11 @@ export const extractIdFromSlug = (slugOrId) => {
 };
 
 /**
- * Professional News URL generator (transliterated Latin slug + Firestore ID)
- * Similar to Aaj Tak, Amar Ujala, Dainik Jagran URL patterns.
- * Example: "rahul-gandhi-kendra-par-nishana-3JDH7Wv6UFHy5LQoPjav"
+ * Clean News URL generator using news title itself (transliterated Latin slug)
+ * Example: "rajshamani-become-mentally-dangerous-with-these-habit"
  */
 export const createNewsSlug = (title, id) => {
-  if (!title && !id) return '';
+  if (!title && !id) return 'news';
   const transliterated = transliterateHindi(title || '');
   
   let cleanSlug = transliterated
@@ -112,20 +111,20 @@ export const createNewsSlug = (title, id) => {
     .replace(/-+/g, '-')      // collapse multiple hyphens
     .replace(/^-+|-+$/g, ''); // trim hyphens
 
-  // Cap the slug at 70 characters for clean SEO without breaking in the middle of a word
-  if (cleanSlug.length > 70) {
-    const truncated = cleanSlug.slice(0, 70);
+  // Allow clean reading length up to 90 characters without breaking mid-word
+  if (cleanSlug.length > 90) {
+    const truncated = cleanSlug.slice(0, 90);
     const lastHyphen = truncated.lastIndexOf('-');
     cleanSlug = lastHyphen > 30 ? truncated.slice(0, lastHyphen) : truncated;
   }
 
-  if (cleanSlug && id) {
-    return `${cleanSlug}-${id}`;
+  if (cleanSlug) {
+    return cleanSlug;
   }
   if (id) {
     return id;
   }
-  return cleanSlug || 'news';
+  return 'news';
 };
 
 /**

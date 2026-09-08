@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { collection, query, orderBy, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "../../firebase";
 import { updateEmail, updatePassword } from "firebase/auth";
 import AdminLayout from "../../components/AdminLayout";
@@ -17,6 +17,7 @@ import {
   UserCog, 
   Trash2, 
   Plus, 
+  Pencil,
   ExternalLink,
   Sliders,
   Crop,
@@ -40,9 +41,10 @@ const Dashboard = () => {
   const [breakingSuccess, setBreakingSuccess] = useState("");
   const [breakingError, setBreakingError] = useState("");
 
-  // Point 2 & 7: Slides States & Step-by-Step Manager
+  // Point 2, 3 & 6: Slides States & Step-by-Step Manager
   const [slides, setSlides] = useState([]);
   const [showAddSlide, setShowAddSlide] = useState(false);
+  const [editingSlideId, setEditingSlideId] = useState(null); // Point 6: Edit slide id
   const [slideDescription, setSlideDescription] = useState("");
   const [slideLink, setSlideLink] = useState("");
   const [slideImageType, setSlideImageType] = useState("upload"); // "upload" or "url"
@@ -52,7 +54,8 @@ const Dashboard = () => {
   const [slideSuccess, setSlideSuccess] = useState("");
   const [slideError, setSlideError] = useState("");
 
-  // Image Cropper & Aspect Ratio settings (Point 7)
+  // Point 3: Image Cropper & Aspect Ratio settings (16:9 Fit / Cover)
+  const [fitMode, setFitMode] = useState("cover"); // "cover" or "contain"
   const [cropZoom, setCropZoom] = useState(1);
   const [cropOffsetY, setCropOffsetY] = useState(50); // 0 (top) to 100 (bottom)
   const [cropOffsetX, setCropOffsetX] = useState(50); // 0 (left) to 100 (right)
@@ -141,7 +144,7 @@ const Dashboard = () => {
     fetchSlides();
   }, []);
 
-  // Update canvas preview whenever image source or crop parameters change (Point 7)
+  // Point 3: Update canvas preview whenever image source, fitMode, or crop parameters change
   useEffect(() => {
     if (!rawImageSource) {
       setCroppedPreviewUrl("");
@@ -153,45 +156,57 @@ const Dashboard = () => {
     img.src = rawImageSource;
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      // 16:9 banner resolution
+      // Standard 16:9 banner resolution (1280x720)
       const targetWidth = 1280;
       const targetHeight = 720;
       canvas.width = targetWidth;
       canvas.height = targetHeight;
       const ctx = canvas.getContext("2d");
 
-      // Draw background
-      ctx.fillStyle = "#000000";
+      // Fill background
+      ctx.fillStyle = "#0a0a0a";
       ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-      // Compute 16:9 covering dimension
       const imgAspect = img.width / img.height;
       const targetAspect = targetWidth / targetHeight;
 
-      let drawWidth, drawHeight;
-      if (imgAspect > targetAspect) {
-        // Image is wider than 16:9
-        drawHeight = targetHeight * cropZoom;
-        drawWidth = drawHeight * imgAspect;
+      if (fitMode === "contain") {
+        // Fit entire image without cropping (letterbox if needed)
+        let drawWidth, drawHeight;
+        if (imgAspect > targetAspect) {
+          drawWidth = targetWidth;
+          drawHeight = drawWidth / imgAspect;
+        } else {
+          drawHeight = targetHeight;
+          drawWidth = drawHeight * imgAspect;
+        }
+        const posX = (targetWidth - drawWidth) / 2;
+        const posY = (targetHeight - drawHeight) / 2;
+        ctx.drawImage(img, posX, posY, drawWidth, drawHeight);
       } else {
-        // Image is taller than 16:9
-        drawWidth = targetWidth * cropZoom;
-        drawHeight = drawWidth / imgAspect;
+        // Fill 16:9 (Cover) with Zoom and Pan offsets
+        let drawWidth, drawHeight;
+        if (imgAspect > targetAspect) {
+          drawHeight = targetHeight * cropZoom;
+          drawWidth = drawHeight * imgAspect;
+        } else {
+          drawWidth = targetWidth * cropZoom;
+          drawHeight = drawWidth / imgAspect;
+        }
+
+        const maxOffsetX = Math.max(0, drawWidth - targetWidth);
+        const maxOffsetY = Math.max(0, drawHeight - targetHeight);
+
+        const posX = -(maxOffsetX * (cropOffsetX / 100));
+        const posY = -(maxOffsetY * (cropOffsetY / 100));
+
+        ctx.drawImage(img, posX, posY, drawWidth, drawHeight);
       }
-
-      // Compute offsets based on crop sliders
-      const maxOffsetX = drawWidth - targetWidth;
-      const maxOffsetY = drawHeight - targetHeight;
-
-      const posX = -(maxOffsetX * (cropOffsetX / 100));
-      const posY = -(maxOffsetY * (cropOffsetY / 100));
-
-      ctx.drawImage(img, posX, posY, drawWidth, drawHeight);
 
       const base64Data = canvas.toDataURL("image/jpeg", 0.75);
       setCroppedPreviewUrl(base64Data);
     };
-  }, [rawImageSource, cropZoom, cropOffsetY, cropOffsetX]);
+  }, [rawImageSource, fitMode, cropZoom, cropOffsetY, cropOffsetX]);
 
   const handleUpdateBreakingNews = async (e) => {
     e.preventDefault();
@@ -236,6 +251,26 @@ const Dashboard = () => {
     }
   };
 
+  // Point 6: Start editing an existing slide
+  const handleStartEditSlide = (slide) => {
+    setEditingSlideId(slide.id);
+    setSlideDescription(slide.description || "");
+    setSlideLink(slide.link || "");
+    setSlideImageType(slide.image && slide.image.startsWith("http") ? "url" : "upload");
+    setSlideImageUrl(slide.image && slide.image.startsWith("http") ? slide.image : "");
+    setRawImageSource(slide.image || null);
+    setCroppedPreviewUrl(slide.image || "");
+    setFitMode("cover");
+    setCropZoom(1);
+    setCropOffsetY(50);
+    setCropOffsetX(50);
+    setShowAddSlide(true);
+
+    setTimeout(() => {
+      document.getElementById("slide-form-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
+
   const handleSaveSlide = async (e) => {
     e.preventDefault();
     setSlideLoading(true);
@@ -248,19 +283,32 @@ const Dashboard = () => {
         throw new Error("कृपया स्लाइड की छवि चुनें (Please select or crop an image).");
       }
 
-      await addDoc(collection(db, "slides"), {
-        image: finalImage,
-        link: slideLink.trim() || "",
-        description: slideDescription.trim() || "",
-        createdAt: new Date(),
-      });
+      if (editingSlideId) {
+        // Point 6: Update existing slide
+        await updateDoc(doc(db, "slides", editingSlideId), {
+          image: finalImage,
+          link: slideLink.trim() || "",
+          description: slideDescription.trim() || "",
+          updatedAt: new Date(),
+        });
+        setSlideSuccess("स्लाइड सफलतापूर्वक अपडेट हो गई! (Slide updated successfully)");
+      } else {
+        // Add new slide
+        await addDoc(collection(db, "slides"), {
+          image: finalImage,
+          link: slideLink.trim() || "",
+          description: slideDescription.trim() || "",
+          createdAt: new Date(),
+        });
+        setSlideSuccess("सफलतापूर्वक स्लाइड जोड़ी गई! (Slide added successfully)");
+      }
 
-      setSlideSuccess("सफलतापूर्वक स्लाइड जोड़ी गई! (Slide added successfully)");
       setSlideDescription("");
       setSlideLink("");
       setSlideImageUrl("");
       setRawImageSource(null);
       setCroppedPreviewUrl("");
+      setEditingSlideId(null);
       setShowAddSlide(false);
 
       // Refresh slides list immediately
@@ -274,8 +322,8 @@ const Dashboard = () => {
 
       setTimeout(() => setSlideSuccess(""), 4000);
     } catch (err) {
-      console.error("Error adding slide:", err);
-      setSlideError(err.message || "Failed to add slide.");
+      console.error("Error saving slide:", err);
+      setSlideError(err.message || "Failed to save slide.");
     } finally {
       setSlideLoading(false);
     }
@@ -471,8 +519,21 @@ const Dashboard = () => {
             </div>
             <button
               type="button"
-              onClick={() => setShowAddSlide((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition shadow-sm w-fit"
+              onClick={() => {
+                if (!showAddSlide) {
+                  setEditingSlideId(null);
+                  setSlideDescription("");
+                  setSlideLink("");
+                  setSlideImageUrl("");
+                  setRawImageSource(null);
+                  setCroppedPreviewUrl("");
+                  setShowAddSlide(true);
+                } else {
+                  setShowAddSlide(false);
+                  setEditingSlideId(null);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition shadow-sm w-fit cursor-pointer"
             >
               {showAddSlide ? (
                 <>
@@ -495,11 +556,18 @@ const Dashboard = () => {
 
           {/* Collapsible Step-by-Step Slide Creator (Point 2 & 7) */}
           {showAddSlide && (
-            <div className="mt-6 p-5 sm:p-6 bg-gray-50 dark:bg-gray-900/80 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-5 animate-fadeIn">
+            <div id="slide-form-section" className="mt-6 p-5 sm:p-6 bg-gray-50 dark:bg-gray-900/80 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-5 animate-fadeIn">
               <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-750 pb-3">
-                <h4 className="text-xs font-extrabold uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
-                  <Crop size={14} /> Step 1: Slide Details & 16:9 Image Crop
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                    <Crop size={14} /> {editingSlideId ? "✏️ Edit Scheme Slide (स्लाइड संपादित करें)" : "➕ Add Scheme Slide & 16:9 Image Crop"}
+                  </h4>
+                  {editingSlideId && (
+                    <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                      Editing
+                    </span>
+                  )}
+                </div>
                 <span className="text-[11px] text-gray-400">Target Ratio: 16:9 Banner</span>
               </div>
 
@@ -589,15 +657,40 @@ const Dashboard = () => {
                   )}
                 </div>
 
-                {/* Point 7: Interactive 16:9 Canvas Crop Tool */}
+                {/* Point 3: Interactive 16:9 Canvas Crop Tool */}
                 {rawImageSource && (
                   <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-250 dark:border-gray-700 space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800 dark:text-gray-200">
                         <Sliders size={13} className="text-red-500" />
                         16:9 Ratio Adjuster (अनुपात समायोजन)
                       </div>
-                      <span className="text-[10px] text-gray-400">Adjust zoom & position to fit slide banner</span>
+                      
+                      {/* Fit Mode Toggle */}
+                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700/60 p-1 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => setFitMode("cover")}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                            fitMode === "cover"
+                              ? "bg-red-600 text-white shadow-xs"
+                              : "text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white"
+                          }`}
+                        >
+                          Fill Banner (Crop 16:9)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFitMode("contain")}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                            fitMode === "contain"
+                              ? "bg-red-600 text-white shadow-xs"
+                              : "text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white"
+                          }`}
+                        >
+                          Fit Full Image (Contain)
+                        </button>
+                      </div>
                     </div>
 
                     {/* Live 16:9 Crop Preview */}
@@ -683,12 +776,16 @@ const Dashboard = () => {
                     disabled={slideLoading || (!rawImageSource && !croppedPreviewUrl)}
                     className="py-2 px-5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer shadow-sm flex items-center gap-1.5"
                   >
-                    {slideLoading ? "Saving Slide..." : "Save & Add Next (स्लाइड सहेजें)"}
+                    {slideLoading ? "Saving Slide..." : editingSlideId ? "Update Slide (स्लाइड अपडेट करें)" : "Save & Add Next (स्लाइड सहेजें)"}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setShowAddSlide(false);
+                      setEditingSlideId(null);
+                      setSlideDescription("");
+                      setSlideLink("");
+                      setSlideImageUrl("");
                       setRawImageSource(null);
                       setCroppedPreviewUrl("");
                     }}
@@ -757,13 +854,24 @@ const Dashboard = () => {
                             ? slide.createdAt.toDate().toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
                             : "Recent"}
                         </td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap space-x-1.5">
                           <button
+                            type="button"
+                            onClick={() => handleStartEditSlide(slide)}
+                            className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
+                            title="Edit Slide (स्लाइड संपादित करें)"
+                          >
+                            <Pencil size={14} />
+                            <span className="text-[11px] font-semibold hidden sm:inline">Edit</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDeleteSlide(slide.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition"
+                            className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
                             title="Delete Slide"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} />
+                            <span className="text-[11px] font-semibold hidden sm:inline">Delete</span>
                           </button>
                         </td>
                       </tr>

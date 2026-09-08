@@ -198,20 +198,20 @@ const DailyQuote = ({ variant = "banner" }) => {
   return (
     <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-amber-50 dark:from-amber-950/25 dark:via-orange-950/15 dark:to-amber-950/25 border-b border-amber-200/60 dark:border-amber-900/30 text-xs transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <div className="flex items-center gap-3 w-full sm:w-auto overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1">
           {/* Badge */}
           <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500 text-white font-extrabold text-[10px] tracking-wider uppercase shadow-xs">
             <Sparkles size={11} className="animate-pulse" />
             आज का विचार
           </span>
 
-          {/* Quote text */}
-          <p className="text-gray-800 dark:text-gray-200 font-medium text-xs sm:text-sm truncate">
-            &ldquo;{today.quote}&rdquo;
-            <span className="ml-2 font-bold text-amber-700 dark:text-amber-400 text-xs shrink-0">
+          {/* Quote text - Full display without truncation */}
+          <div className="text-gray-800 dark:text-gray-200 font-medium text-xs sm:text-sm leading-relaxed flex-1">
+            <span>&ldquo;{today.quote}&rdquo;</span>
+            <span className="ml-2 font-bold text-amber-700 dark:text-amber-400 text-xs inline-block">
               — {today.author}
             </span>
-          </p>
+          </div>
         </div>
 
         {/* Action icons (Copy & Share) */}

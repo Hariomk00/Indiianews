@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
 import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc } from "firebase/firestore";
-import { ref, deleteObject } from "firebase/storage";
+import { ref, deleteObject, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../firebase";
 import AdminLayout from "../../components/AdminLayout";
-import { ArrowLeft, Save, Upload, Eye, Sparkles, RefreshCw, Video, Image as ImageIcon, Play, Check } from "lucide-react";
+import { ArrowLeft, Save, Upload, Eye, Sparkles, RefreshCw, Video, Image as ImageIcon, Play, Check, FileVideo, Globe, HardDrive } from "lucide-react";
 import { slugify } from "../../utils/slugify";
 
 // Helper function to extract YouTube video ID from various YouTube URL formats
@@ -92,9 +92,14 @@ const AddEditNews = () => {
   const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState([]);
 
-  // Point 5: Media Type state [image | video]
+  // Point 4: Media Type & Local Video Upload states
   const [mediaType, setMediaType] = useState("image");
+  const [videoSourceType, setVideoSourceType] = useState("url"); // "url" or "upload"
   const [videoUrl, setVideoUrl] = useState("");
+  const [videoFile, setVideoFile] = useState(null);
+  const [videoLocalPreview, setVideoLocalPreview] = useState("");
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [videoUploading, setVideoUploading] = useState(false);
   const [useAutoYoutubeThumb, setUseAutoYoutubeThumb] = useState(true);
 
   const [imageType, setImageType] = useState("upload"); // "upload" or "url"
@@ -229,6 +234,12 @@ const AddEditNews = () => {
             if (data.media_type === "video" || data.video_url) {
               setMediaType("video");
               setVideoUrl(data.video_url || "");
+              if (data.video_url && !data.video_url.includes("youtube") && !data.video_url.includes("youtu.be")) {
+                setVideoSourceType("upload");
+                setVideoLocalPreview(data.video_url);
+              } else {
+                setVideoSourceType("url");
+              }
             } else {
               setMediaType("image");
             }
@@ -284,10 +295,32 @@ const AddEditNews = () => {
     };
   }, [mediaType, useAutoYoutubeThumb, autoYoutubeThumbnail, imageType, imageFile, imageUrl, existingImageUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (videoLocalPreview && videoLocalPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(videoLocalPreview);
+      }
+    };
+  }, [videoLocalPreview]);
+
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setImageFile(file);
+    }
+  };
+
+  const handleVideoFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 100 * 1024 * 1024) {
+        setError("वीडियो फ़ाइल 100MB से कम होनी चाहिए (Video file must be under 100MB).");
+        return;
+      }
+      setVideoFile(file);
+      const objUrl = URL.createObjectURL(file);
+      setVideoLocalPreview(objUrl);
+      setError("");
     }
   };
 
@@ -303,16 +336,62 @@ const AddEditNews = () => {
       return;
     }
 
-    if (mediaType === "video" && !videoUrl.trim()) {
-      setError("Please provide a video URL (e.g. YouTube link).");
-      setLoading(false);
-      return;
+    if (mediaType === "video") {
+      if (videoSourceType === "url" && !videoUrl.trim()) {
+        setError("कृपया वीडियो URL दर्ज करें (Please provide a video URL).");
+        setLoading(false);
+        return;
+      }
+      if (videoSourceType === "upload" && !videoFile && !videoUrl.trim()) {
+        setError("कृपया स्थानीय स्टोरेज से एक वीडियो फ़ाइल चुनें (Please select a video file to upload).");
+        setLoading(false);
+        return;
+      }
     }
 
     try {
+      let finalVideoUrl = videoUrl.trim();
+
+      // Handle local video file upload to Firebase Storage
+      if (mediaType === "video" && videoSourceType === "upload" && videoFile) {
+        setVideoUploading(true);
+        try {
+          const safeName = videoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const storageRef = ref(storage, `videos/${Date.now()}_${safeName}`);
+          const uploadTask = uploadBytesResumable(storageRef, videoFile);
+
+          finalVideoUrl = await new Promise((resolve, reject) => {
+            uploadTask.on(
+              "state_changed",
+              (snapshot) => {
+                const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                setVideoUploadProgress(progress);
+              },
+              (err) => reject(err),
+              async () => {
+                try {
+                  const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                  resolve(downloadUrl);
+                } catch (urlErr) {
+                  reject(urlErr);
+                }
+              }
+            );
+          });
+        } catch (uploadErr) {
+          console.error("Firebase Storage video upload error:", uploadErr);
+          setError(`वीडियो अपलोड विफल: ${uploadErr.message || "Storage error. Please verify Firebase Storage rules."}`);
+          setLoading(false);
+          setVideoUploading(false);
+          return;
+        } finally {
+          setVideoUploading(false);
+        }
+      }
+
       let finalImageUrl = existingImageUrl;
 
-      if (mediaType === "video" && useAutoYoutubeThumb && autoYoutubeThumbnail) {
+      if (mediaType === "video" && videoSourceType === "url" && useAutoYoutubeThumb && autoYoutubeThumbnail) {
         // Automatically use the full resolution YouTube thumbnail
         finalImageUrl = autoYoutubeThumbnail;
       } else if (imageType === "upload") {
@@ -340,7 +419,7 @@ const AddEditNews = () => {
       }
 
       if (!finalImageUrl && !isEdit) {
-        setError("Please provide a thumbnail image or valid YouTube video URL.");
+        setError("कृपया समाचार के लिए थंबनेल छवि या मान्य वीडियो प्रदान करें (Please provide a thumbnail image or valid video).");
         setLoading(false);
         return;
       }
@@ -354,7 +433,7 @@ const AddEditNews = () => {
         image: finalImageUrl,
         source_url: sourceUrl.trim() || "",
         media_type: mediaType,
-        video_url: mediaType === "video" ? videoUrl.trim() : "",
+        video_url: mediaType === "video" ? finalVideoUrl : "",
       };
 
       if (isEdit) {
@@ -377,7 +456,10 @@ const AddEditNews = () => {
         setImageFile(null);
         setImageUrl("");
         setImagePreview("");
+        setVideoFile(null);
         setVideoUrl("");
+        setVideoLocalPreview("");
+        setVideoUploadProgress(0);
         setSourceUrl("");
         setFetchError("");
       }
@@ -582,34 +664,126 @@ const AddEditNews = () => {
               </select>
             </div>
 
-            {/* Point 5: Video News URL & Thumbnail Extractor */}
+            {/* Point 4 & 5: Video News Source & Local Video Upload */}
             {mediaType === "video" && (
               <div className="p-5 bg-red-50/50 dark:bg-red-950/20 rounded-2xl border border-red-200 dark:border-red-900/50 space-y-4 animate-fadeIn">
-                <div className="flex items-center gap-2">
-                  <Video size={18} className="text-red-600 dark:text-red-400" />
-                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-red-600 dark:text-red-400">
-                    Video News Settings (वीडियो लिंक एवं थंबनेल)
-                  </h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-red-100 dark:border-red-900/40 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Video size={18} className="text-red-600 dark:text-red-400" />
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-red-600 dark:text-red-400">
+                      Video Source (वीडियो स्रोत)
+                    </h4>
+                  </div>
+
+                  {/* Mode Toggle: YouTube vs Local Video File */}
+                  <div className="flex items-center gap-1.5 bg-white dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <button
+                      type="button"
+                      onClick={() => setVideoSourceType("url")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        videoSourceType === "url"
+                          ? "bg-red-600 text-white shadow-xs"
+                          : "text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white"
+                      }`}
+                    >
+                      <Globe size={13} />
+                      <span>YouTube / Link</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVideoSourceType("upload")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        videoSourceType === "upload"
+                          ? "bg-red-600 text-white shadow-xs"
+                          : "text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white"
+                      }`}
+                    >
+                      <HardDrive size={13} />
+                      <span>Upload Video File (लोकल फ़ाइल)</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                    Video URL (YouTube, Vimeo, or Direct MP4 link) *
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
-                    placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ or https://youtu.be/..."
-                    className="block w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 dark:text-white text-xs transition"
-                  />
-                </div>
+                {videoSourceType === "url" ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Video URL (YouTube, Vimeo, or Direct MP4 link) *
+                      </label>
+                      <input
+                        type="url"
+                        value={videoUrl}
+                        onChange={(e) => setVideoUrl(e.target.value)}
+                        placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ or https://youtu.be/..."
+                        className="block w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 dark:text-white text-xs transition"
+                      />
+                    </div>
 
-                {youtubeId && (
-                  <div className="flex items-center gap-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                    <Check size={14} />
-                    <span>YouTube Video ID detected: <strong className="font-mono">{youtubeId}</strong>. Full high-res thumbnail extracted automatically!</span>
+                    {youtubeId && (
+                      <div className="flex items-center gap-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                        <Check size={14} />
+                        <span>YouTube Video ID detected: <strong className="font-mono">{youtubeId}</strong>. Full high-res thumbnail extracted automatically!</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Select Video File from Computer / Phone (स्थानीय स्टोरेज से वीडियो चुनें) *
+                      </label>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <label className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-900 border border-dashed border-gray-300 dark:border-gray-650 rounded-xl cursor-pointer hover:border-red-500 transition text-xs font-bold text-gray-700 dark:text-gray-300">
+                          <FileVideo size={16} className="text-red-500" />
+                          <span>{videoFile ? videoFile.name : "Choose Video (.mp4, .webm, .mov)"}</span>
+                          <input
+                            type="file"
+                            accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                            onChange={handleVideoFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                        {videoFile && (
+                          <span className="text-[11px] text-gray-500">
+                            Size: {(videoFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Local Video Player Preview */}
+                    {(videoLocalPreview || videoUrl) && (
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                          Video Player Preview:
+                        </span>
+                        <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-black aspect-video max-w-md shadow-inner">
+                          <video
+                            src={videoLocalPreview || videoUrl}
+                            controls
+                            className="w-full h-full object-contain"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload progress indicator */}
+                    {videoUploading && (
+                      <div className="space-y-1 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-750">
+                        <div className="flex justify-between text-xs font-bold text-gray-700 dark:text-gray-200">
+                          <span>Uploading video to storage...</span>
+                          <span className="text-red-600 dark:text-red-400">{videoUploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-red-600 h-2 transition-all duration-300 rounded-full"
+                            style={{ width: `${videoUploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -621,7 +795,7 @@ const AddEditNews = () => {
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                   {mediaType === "video" ? "Video Thumbnail (वीडियो थंबनेल)" : "Featured Image (विशेष छवि) *"}
                 </label>
-                {mediaType === "video" && youtubeId && (
+                {mediaType === "video" && videoSourceType === "url" && youtubeId && (
                   <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
                     <input
                       type="checkbox"
@@ -634,7 +808,7 @@ const AddEditNews = () => {
                 )}
               </div>
 
-              {(!useAutoYoutubeThumb || mediaType === "image") && (
+              {(!useAutoYoutubeThumb || mediaType === "image" || videoSourceType === "upload") && (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 dark:bg-gray-900 rounded-xl max-w-xs border border-gray-200 dark:border-gray-750">
                     <button

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
-import { slugify, safeDecodeURIComponent, extractIdFromSlug } from "../utils/slugify";
+import { slugify, safeDecodeURIComponent, extractIdFromSlug, createNewsSlug } from "../utils/slugify";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { Calendar, Tag, ArrowLeft, RefreshCw, Play } from "lucide-react";
@@ -88,6 +88,7 @@ const NewsDetail = () => {
     let isMounted = true;
 
     const fetchNewsDetail = async () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       setLoading(true);
       setError(null);
       try {
@@ -171,7 +172,17 @@ const NewsDetail = () => {
             const matchedDoc = querySnapLatest.docs.find((d) => {
               const data = d.data();
               if (d.id === id) return true;
-              if (data.title && (data.title === rawDecoded || slugify(data.title) === targetSlug)) return true;
+              const cleanDocSlug = createNewsSlug(data.title);
+              const translitDoc = slugify(data.title);
+              if (
+                data.title === rawDecoded ||
+                translitDoc === targetSlug ||
+                cleanDocSlug === targetSlug ||
+                (data.slug && (data.slug === targetSlug || data.slug === cleanDocSlug)) ||
+                (targetSlug.length > 12 && (cleanDocSlug.startsWith(targetSlug) || targetSlug.startsWith(cleanDocSlug)))
+              ) {
+                return true;
+              }
               return false;
             });
 
@@ -224,6 +235,17 @@ const NewsDetail = () => {
       isMounted = false;
     };
   }, [id, fetchTrigger]);
+
+  // Points 2 & 5: Ensure viewport is locked at the very top (0, 0) once article content finishes loading
+  useEffect(() => {
+    if (!loading && news) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      const timer = setTimeout(() => {
+        window.scrollTo(0, 0);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, news]);
 
   // Format timestamp to readable date
   const formatDate = (timestamp) => {
@@ -326,6 +348,8 @@ const NewsDetail = () => {
                     title={news.title}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
+                    tabIndex={-1}
+                    loading="lazy"
                     className="absolute inset-0 w-full h-full border-0"
                   />
                 </div>

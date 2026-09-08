@@ -10,10 +10,12 @@ import ManageNews from "./pages/admin/ManageNews";
 import AddEditNews from "./pages/admin/AddEditNews";
 import ImportNews from "./pages/admin/ImportNews";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ScrollToTop from "./components/ScrollToTop";
 
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
